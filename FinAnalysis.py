@@ -77,6 +77,9 @@ class FinAnalysis:
             plt.xlabel('days')
             print('Number of buys:', buys_size)
             print('Number of sells:', sells_size)
+            print('Largest negative open interests:', np.min(position_list))
+            print('Largest positive open interests:', np.max(position_list))
+            print('Last position:', position_list[-1])
             print('Asset:', asset_list[-1])
             print('Last price', prices[-1])
         except IndexError:
