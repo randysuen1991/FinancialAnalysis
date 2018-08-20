@@ -10,7 +10,7 @@ class Order:
 
 
 class Limit:
-    def __init__(self, limit_price, size, book_parent):
+    def __init__(self, limit_price, size, side, book_parent):
         self.limit_price = limit_price
         self.size = size
         self.total_volume = 0.0
@@ -35,14 +35,18 @@ class Limit:
         if not found:
             raise ValueError('There is no such order id:' + order_id)
 
-    # Haven't handle the case when the size is larger than the total volume.
     def on_trade(self, size):
         self.total_volume += size
         for order in self.order_queue:
-            if size >= order.size:
+            if size > order.size:
                 self.order_queue.remove(order)
+                size -= order.size
+            elif size == order.size:
+                self.order_queue.remove(order)
+                break
             else:
                 order.size -= size
+                break
 
 
 class Book:
@@ -62,6 +66,7 @@ class Book:
 
         self.verbose = verbose
 
+    # Unfinished
     def on_trade(self, side, price, size):
         if type(size) == str:
             size = eval(size)
@@ -91,7 +96,7 @@ class Book:
                     self.buy_limits[price].on_add_order(price, size, order_id)
                     self.buy_limits[price].size += size
                 else:
-                    limit = Limit(price, size, self.buy_limits)
+                    limit = Limit(price, size, self.buy_limits, self)
                     limit.on_add_order(price, size, order_id)
                     self.buy_limits[price] = limit
 
@@ -106,9 +111,9 @@ class Book:
                     self.sell_limits[price].on_add_order(price, size, order_id)
                     self.sell_limits[price].size += size
                 else:
-                    limit = Limit(price, size, self.sell_limits)
+                    limit = Limit(price, size, self.sell_limits, self)
                     limit.on_add_order(price, size, order_id)
-                    self.sell_limits[price] = Limit(price, size, self.sell_limits)
+                    self.sell_limits[price] = limit
 
             self.lowest_sell = self.sell_limits.peekitem(0)[1]
         else:
