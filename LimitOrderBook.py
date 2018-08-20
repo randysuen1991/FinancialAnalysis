@@ -1,4 +1,12 @@
 import pandas as pd
+import sortedcontainers as sc
+
+
+class Order:
+    def __init__(self, price, size, order_id=None):
+        self.price = price
+        self.size = size
+        self.order_id = order_id
 
 
 class Limit:
@@ -27,7 +35,7 @@ class Limit:
         if not found:
             raise ValueError('There is no such order id:' + order_id)
 
-    # Haven't handle the case when the size is larger than the total_volumn.
+    # Haven't handle the case when the size is larger than the total volume.
     def on_trade(self, size):
         self.total_volume += size
         for order in self.order_queue:
@@ -55,7 +63,8 @@ class Book:
         self.verbose = verbose
 
     def on_trade(self, side, price, size):
-        size = eval(size)
+        if type(size) == str:
+            size = eval(size)
         if side == 'buy':
             self.buy_count += 1
             self.total_buy_volume += size
@@ -120,4 +129,3 @@ class Book:
                 limit.size -= old_size
                 limit.size += new_size
                 break
-                
