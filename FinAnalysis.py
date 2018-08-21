@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 
 
 class FinAnalysis:
+
+    @staticmethod
     def PricesActions(prices, actions, low=None, high=None):
         assert len(prices) == len(actions)
         if low is None:
@@ -36,6 +38,7 @@ class FinAnalysis:
         
         plt.legend(handles=[prices_plot[0], buy_scatter, sell_scatter], labels=names, loc='best')
 
+    @staticmethod
     def AccumulatedProfit(prices, actions, low=0, high=None):
         assert len(prices) == len(actions)
         if low is None:
@@ -89,7 +92,8 @@ class FinAnalysis:
             return asset_list[-1], np.min(position_list)
         except IndexError:
             return 0
-        
+
+    @staticmethod
     def OneLotAccumulatedProfit(prices, actions, low=None, high=None):
         assert len(prices) == len(actions)
         if low is None:

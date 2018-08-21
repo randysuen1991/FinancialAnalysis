@@ -10,7 +10,7 @@ class Order:
 
 
 class Limit:
-    def __init__(self, limit_price, size, side, book_parent):
+    def __init__(self, limit_price, size, book_parent):
         self.limit_price = limit_price
         self.size = size
         self.total_volume = 0.0
@@ -66,6 +66,27 @@ class Book:
 
         self.verbose = verbose
 
+    # The argument limits should be a dictionary with keys, 'ask' and 'bid'.
+    # The value should be a list with elements being tuples (price, size).
+    @classmethod
+    def Construct_with_Limits(cls, instrument,  limits):
+        book = cls(instrument)
+        ask_limits = limits['ask']
+        bid_limits = limits['bid']
+        for ask in ask_limits:
+            order = Order(ask[0], ask[1])
+            limit = Limit(ask[0], ask[1], book)
+            limit.order_queue.append(order)
+            book.sell_limits[ask[0]] = limit
+
+        for bid in bid_limits:
+            order = Order(bid[0], bid[1])
+            limit = Limit(bid[0], bid[1], book)
+            limit.order_queue.append(order)
+            book.buy_limits[bid[0]] = limit
+
+        return book
+
     # Unfinished
     def on_trade(self, side, price, size):
         if type(size) == str:
@@ -83,8 +104,7 @@ class Book:
         else:
             raise ValueError('on trade: does not recognize size=' + side)
 
-    # I make it more complicated since I want it to be available for both l2 and full channels.
-    # When the order_id is not passed, it is the case the message is from the l2update channel.
+
     def on_level_update(self, side, price, size, order_id=None):
         price = eval(price)
         size = eval(size)

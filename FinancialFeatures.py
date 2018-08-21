@@ -16,3 +16,4 @@ class FinancialFeatures:
                 bid_pressure += OB.buy_limits[bid_price].size
                 ask_pressure += OB.sell_limits[ask_price].size
 
+        return bid_pressure / ask_pressure
