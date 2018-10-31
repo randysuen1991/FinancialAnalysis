@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 
 
 class PairTrading:
+
     def __init__(self, regressor):
         self.regressor = regressor()
         self.residual = None
@@ -24,7 +25,7 @@ class PairTrading:
         prediction = self.regressor.predict(series1.reshape(-1, 1))
         residual = (prediction - series2.reshape(-1, 1)).ravel()
         return residual, DA.TimeSeriesAnalysis.adfuller(residual)
-    
+
     # return the days in which we should go in and we should go out.
     def simulate(self, in_threshold, out_threshold, series=None, plot=False):
         if series is None:
@@ -92,3 +93,30 @@ class PairTrading:
         return position, earns, list(self.dates[days]), actions, residuals
 
 
+class CumulativeVolumeTrading:
+
+    def __init__(self, stocks, mean_dict, std_dict):
+        self.stocks = stocks
+        self.mean_dict = mean_dict
+        self.std_dict = std_dict
+
+    def start(self, df, n_std, threshold):
+        long_count = 0
+        short_count = 0
+
+        for stock in self.stocks:
+            cum_ask = df.loc[stock, 'cum_ask']
+            cum_bid = df.loc[stock, 'cum_bid']
+            n = ((cum_ask - cum_bid) - self.mean_dict[stock]) / self.std_dict[stock]
+            if n > n_std:
+                long_count += 1
+            elif n < -n_std:
+                short_count += 1
+
+        print('Number of long:', long_count)
+        print('Number of short:', short_count)
+
+        if long_count - short_count >= threshold:
+            print('Long!')
+        elif long_count - short_count <= -threshold:
+            print('Short!')
