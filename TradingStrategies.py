@@ -95,22 +95,26 @@ class PairTrading:
 
 class CumulativeVolumeTrading:
 
-    def __init__(self, stocks, mean_dict, std_dict):
+    def __init__(self, stocks, mean_dict, std_dict, start_time, end_time):
         self.stocks = stocks
         self.mean_dict = mean_dict
         self.std_dict = std_dict
+        self.start_time = start_time
+        self.end_time = end_time
+        str_name = 'vol_diff_'
+        for time in self.start_time + self.end_time:
+            str_name += time
+        self.str_name = str_name
 
-    def start(self, df, n_std, threshold):
+    def trade(self, df, n_std, threshold):
         long_count = 0
         short_count = 0
 
         for stock in self.stocks:
-            cum_ask = df.loc[stock, 'cum_ask']
-            cum_bid = df.loc[stock, 'cum_bid']
-            n = ((cum_ask - cum_bid) - self.mean_dict[stock]) / self.std_dict[stock]
-            if n > n_std:
+            vol_diff = df.loc[stock, self.str_name]
+            if vol_diff > n_std:
                 long_count += 1
-            elif n < -n_std:
+            elif vol_diff < -n_std:
                 short_count += 1
 
         print('Number of long:', long_count)
@@ -120,3 +124,13 @@ class CumulativeVolumeTrading:
             print('Long!')
         elif long_count - short_count <= -threshold:
             print('Short!')
+
+
+class AdditiveTrading:
+
+    def __init__(self, stocks, features):
+        self.stocks = stocks
+        self.features = features
+
+    def trade(self, df):
+        pass
