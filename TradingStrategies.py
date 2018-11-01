@@ -1,6 +1,7 @@
 import numpy as np
 from DataAnalysis import DataAnalysis as DA
 import matplotlib.pyplot as plt
+from scipy import stats
 
 
 class PairTrading:
@@ -128,9 +129,23 @@ class CumulativeVolumeTrading:
 
 class AdditiveTrading:
 
-    def __init__(self, stocks, features):
+    def __init__(self, stocks, features, models):
         self.stocks = stocks
         self.features = features
+        self.models = models
+        self.results_num = list()
+        self.results_dec = list()
 
     def trade(self, df):
-        pass
+        for iteration, stock in enumerate(self.stocks):
+            stock = str(stock)
+            features = df.loc[stock, self.features].values
+            result_num = self.models[iteration].predict(features)[0]
+            self.results_num.append(result_num)
+            if result_num >= 0:
+                self.results_dec.append(1)
+            else:
+                self.results_dec.append(0)
+
+        average = np.mean(self.results_num)
+        decision = stats.mode(self.results_dec)[0][0]
