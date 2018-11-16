@@ -3,7 +3,9 @@ from DataAnalysis import DataAnalysis as DA
 import matplotlib.pyplot as plt
 from scipy import stats
 import os
+import pandas as pd
 import sys
+
 
 def save_file(df, filename):
     this_dir, _ = os.path.split(__file__)
@@ -13,23 +15,29 @@ def save_file(df, filename):
 
 class PairTrading:
 
-    def __init__(self, regressor):
+    def __init__(self, regressor, window_size=10):
         self.regressor = regressor()
+        self.window_size = 10
         self.residual = None
         self.result = None
         self.maximum_position = 1
         self.dates = None
-        self.std = None
-        self.mean = None
+        self.rolling_std = None
+        self.rolling_mean = None
 
     def fit(self, series1, series2, dates):
         self.dates = dates
         self.regressor.fit(x_train=series1.reshape(-1, 1), y_train=series2.reshape(-1, 1))
         prediction = self.regressor.predict(series1.reshape(-1, 1))
-        self.residual = (prediction - series2.reshape(-1, 1)).ravel()
-        self.result = DA.TimeSeriesAnalysis.adfuller(self.residual)
-        self.std = np.std(self.residual)
-        self.mean = np.mean(self.residual)
+        residual = (prediction - series2.reshape(-1, 1)).ravel()
+        rolling_mean = pd.Series(residual).rolling(self.window_size).mean()
+        self.rolling_mean = rolling_mean.to_frame()
+        self.rolling_mean.index = dates
+        rolling_std = pd.Series(residual).rolling(self.window_size).std()
+        self.rolling_std = rolling_std.to_frame()
+        self.rolling_std.index = dates
+        self.residual = pd.DataFrame(residual, index=self.dates)
+        self.result = DA.TimeSeriesAnalysis.adfuller(residual)
         return self.result
 
     def transform(self, series1, series2, dates):
@@ -39,15 +47,22 @@ class PairTrading:
         return residual, DA.TimeSeriesAnalysis.adfuller(residual)
 
     # return the days in which we should go in and we should go out.
+    # the series should be a dataframe whose index should be the date.
     def simulate(self, in_threshold, out_threshold, series=None, plot=False):
         if series is None:
-            series = self.residual
-
-        series_std = series - self.mean
-        series_std /= self.std
-
-        series_std = np.around(series_std, 5)
-
+            series = self.residual[self.window_size-1:]
+            series_std = series - self.rolling_mean.iloc[self.window_size-1:, :]
+            series_std /= self.rolling_std.iloc[self.window_size-1:, :]
+            series_std = series_std.values
+            series_std = series_std.ravel()
+            series_std = np.around(series_std, 5)
+            series = series.values
+        else:
+            index = series.index
+            if index[0] in self.dates[0: self.window_size]:
+                raise ValueError('Please try starting later days')
+            else:
+                pass
         days = list()
         actions = list()
 
