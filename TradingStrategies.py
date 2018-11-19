@@ -6,6 +6,8 @@ import os
 import pandas as pd
 import sys
 import warnings
+from ClassifierAndRegressor.ParametricModel import PRegressor as PR
+
 
 
 def save_file(df, filename):
@@ -22,58 +24,37 @@ class PairTrading:
         self.reg_window_size = reg_window_size
         self.residual = None
         self.result = None
-        self.maximum_position = 1
         self.dates = None
+        # rolling_alpha, rolling_beta, rolling_std, and rolling_mean are dataframes.
+        self.rolling_alpha = None
+        self.rolling_beta = None
         self.rolling_std = None
         self.rolling_mean = None
+        self.model = PR.ExtendedPandasRollingOLS(window_size=reg_window_size)
 
+    # series1 and series2 should be two dataframes, index being the dates.
     def fit(self, series1, series2):
         self.dates = series1.index
-        series1 = series1.loc[:, 'returns']
-        series2 = series2.loc[:, 'returns']
-        self.regressor.fit(x_train=series1.reshape(-1, 1), y_train=series2.reshape(-1, 1))
-        prediction = self.regressor.predict(series1.reshape(-1, 1))
-        residual = (prediction - series2.reshape(-1, 1)).ravel()
-        rolling_mean = pd.Series(residual).rolling(self.window_size).mean()
+        ndarr_series1 = series1.returns
+        ndarr_series2 = series2.returns
+        self.model.fit(x_train=ndarr_series1, y_train=ndarr_series2)
+        self.rolling_alpha = self.model.regressor.alpha
+        self.rolling_beta = self.model.regressor.beta
+        prediction = self.model.predict(series1)
+        residual = (prediction - ndarr_series2.reshape(-1, 1)).ravel()
+        rolling_mean = pd.Series(residual).rolling(self.mean_std_window_size).mean()
         self.rolling_mean = rolling_mean.to_frame()
         self.rolling_mean.index = self.dates
-        rolling_std = pd.Series(residual).rolling(self.window_size).std()
+        rolling_std = pd.Series(residual).rolling(self.mean_std_window_size).std()
         self.rolling_std = rolling_std.to_frame()
         self.rolling_std.index = self.dates
         self.residual = pd.DataFrame(residual, index=self.dates)
         self.result = DA.TimeSeriesAnalysis.adfuller(residual)
         return self.result
 
-    def transform(self, series1, series2, dates):
-        self.dates = dates
-        prediction = self.regressor.predict(series1.reshape(-1, 1))
-        residual = (prediction - series2.reshape(-1, 1)).ravel()
-        return residual, DA.TimeSeriesAnalysis.adfuller(residual)
-
-    # this method will return the dates which we will consider.
-    def _appropriate_dates(self, series):
-        test_dates = series.index
-        if test_dates[0] in self.dates[0: self.window_size]:
-            raise ValueError('Please try starting later days')
-        else:
-            if test_dates[-1] in self.dates[self.window_size:]:
-                return self.dates[self.window_size:test_dates[-1]]
-            else:
-                warnings.warn('The test')
-
     # return the days in which we should go in and we should go out.
     # the series should be a dataframe whose index should be the date.
     def simulate(self, in_threshold, out_threshold, series=None, plot=False):
-        if series is None:
-            series = self.residual[self.window_size-1:]
-            series_std = series - self.rolling_mean.iloc[self.window_size-1:, :]
-            series_std /= self.rolling_std.iloc[self.window_size-1:, :]
-            series_std = series_std.values
-            series_std = series_std.ravel()
-            series_std = np.around(series_std, 5)
-            series = series.values
-        else:
-            dates = self._appropriate_dates(series)
 
         days = list()
         actions = list()
