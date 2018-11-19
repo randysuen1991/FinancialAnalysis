@@ -5,6 +5,7 @@ from scipy import stats
 import os
 import pandas as pd
 import sys
+import warnings
 
 
 def save_file(df, filename):
@@ -15,9 +16,10 @@ def save_file(df, filename):
 
 class PairTrading:
 
-    def __init__(self, regressor, window_size=10):
+    def __init__(self, regressor, reg_window_size=20, mean_std_window_size=10):
         self.regressor = regressor()
-        self.window_size = 10
+        self.mean_std_window_size = mean_std_window_size
+        self.reg_window_size = reg_window_size
         self.residual = None
         self.result = None
         self.maximum_position = 1
@@ -25,17 +27,19 @@ class PairTrading:
         self.rolling_std = None
         self.rolling_mean = None
 
-    def fit(self, series1, series2, dates):
-        self.dates = dates
+    def fit(self, series1, series2):
+        self.dates = series1.index
+        series1 = series1.loc[:, 'returns']
+        series2 = series2.loc[:, 'returns']
         self.regressor.fit(x_train=series1.reshape(-1, 1), y_train=series2.reshape(-1, 1))
         prediction = self.regressor.predict(series1.reshape(-1, 1))
         residual = (prediction - series2.reshape(-1, 1)).ravel()
         rolling_mean = pd.Series(residual).rolling(self.window_size).mean()
         self.rolling_mean = rolling_mean.to_frame()
-        self.rolling_mean.index = dates
+        self.rolling_mean.index = self.dates
         rolling_std = pd.Series(residual).rolling(self.window_size).std()
         self.rolling_std = rolling_std.to_frame()
-        self.rolling_std.index = dates
+        self.rolling_std.index = self.dates
         self.residual = pd.DataFrame(residual, index=self.dates)
         self.result = DA.TimeSeriesAnalysis.adfuller(residual)
         return self.result
@@ -45,6 +49,17 @@ class PairTrading:
         prediction = self.regressor.predict(series1.reshape(-1, 1))
         residual = (prediction - series2.reshape(-1, 1)).ravel()
         return residual, DA.TimeSeriesAnalysis.adfuller(residual)
+
+    # this method will return the dates which we will consider.
+    def _appropriate_dates(self, series):
+        test_dates = series.index
+        if test_dates[0] in self.dates[0: self.window_size]:
+            raise ValueError('Please try starting later days')
+        else:
+            if test_dates[-1] in self.dates[self.window_size:]:
+                return self.dates[self.window_size:test_dates[-1]]
+            else:
+                warnings.warn('The test')
 
     # return the days in which we should go in and we should go out.
     # the series should be a dataframe whose index should be the date.
@@ -58,11 +73,8 @@ class PairTrading:
             series_std = np.around(series_std, 5)
             series = series.values
         else:
-            index = series.index
-            if index[0] in self.dates[0: self.window_size]:
-                raise ValueError('Please try starting later days')
-            else:
-                pass
+            dates = self._appropriate_dates(series)
+
         days = list()
         actions = list()
 
