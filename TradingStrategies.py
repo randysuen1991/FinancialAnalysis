@@ -19,7 +19,6 @@ def save_file(df, filename):
 class PairTrading:
 
     def __init__(self, regressor, reg_window_size=20, mean_std_window_size=10):
-        self.regressor = regressor()
         self.mean_std_window_size = mean_std_window_size
         self.reg_window_size = reg_window_size
         self.residual = None
@@ -31,28 +30,36 @@ class PairTrading:
         self.rolling_beta = None
         self.rolling_std = None
         self.rolling_mean = None
-        self.model = PR.ExtendedPandasRollingOLS(window_size=reg_window_size)
+        self.regressor = PR.ExtendedPandasRollingOLS(window_size=reg_window_size)
 
     # series1 and series2 should be two dataframes, index being the dates.
     def fit(self, series1, series2):
         self.dates = series1.index
         _series1 = series1.iloc[:, 0].to_frame()
         _series2 = series2.iloc[:, 0].to_frame()
-        self.model.fit(x_train=_series1, y_train=_series2)
-        self.rolling_alpha = self.model.regressor.alpha
-        self.rolling_beta = self.model.regressor.beta
-        print(type(_series2), _series2.shape)
-        prediction = self.model.predict(_series1)
+        self.regressor.fit(x_train=_series1, y_train=_series2)
 
-        residual = (prediction - _series2.reshape(-1, 1)).ravel()
+        self.rolling_alpha = self.regressor.regressor.alpha[0:-1]
+        self.rolling_beta = self.regressor.regressor.beta[0:-1]
+        # drop the first self.reg_window_size returns.
+        _series1 = _series1.drop(_series1.index[:self.reg_window_size])
+        _series2 = _series2.drop(_series2.index[:self.reg_window_size])
+        prediction = self.regressor.predict(_series1)
+        residual = (prediction - _series2.values.ravel())
+
         rolling_mean = pd.Series(residual).rolling(self.mean_std_window_size).mean().to_frame()
+        
         self.rolling_mean = rolling_mean.iloc[self.mean_std_window_size:, :]
-        # self.rolling_mean.index = self.dates
+
         rolling_std = pd.Series(residual).rolling(self.mean_std_window_size).std().to_frame()
+
         self.rolling_std = rolling_std.iloc[self.mean_std_window_size:, :]
-        # self.rolling_std.index = self.dates
-        self.residual = pd.DataFrame(residual, index=self.dates)
-        self.result = DA.TimeSeriesAnalysis.adfuller(residual)
+        print(self.rolling_std)
+        residual = pd.DataFrame(residual[self.mean_std_window_size:], index=self.rolling_std.index)
+        residual -= self.rolling_mean
+        residual /= self.rolling_std
+        self.residual = residual
+        self.result = DA.TimeSeriesAnalysis.adfuller(residual.values.ravel())
         return self.result
 
     # return the days in which we should go in and we should go out.
@@ -61,13 +68,15 @@ class PairTrading:
 
         days = list()
         actions = list()
-
         last_price = None
         position = 0
         earn = 0
         earns = list()
         residuals = list()
-        for i, num in enumerate(self.residual):
+
+        for i, num in zip(self.residual.index, self.residual.values):
+            num = num[0]
+            print(i, num)
             if abs(num) > in_threshold and abs(position) < self.maximum_position:
                 if position != 0:
                     if num > in_threshold and position < 0:
@@ -77,7 +86,7 @@ class PairTrading:
                         actions.append('o&s')
                         days.append(i)
                         earns.append(earn)
-                        residuals.append(self.residual[i])
+                        residuals.append(num)
                     elif num < in_threshold and position > 0:
                         earn += (last_price-num)
                         position = -1
@@ -85,34 +94,34 @@ class PairTrading:
                         actions.append('o&l')
                         days.append(i)
                         earns.append(earn)
-                        residuals.append(self.residual[i])
+                        residuals.append(num)
                 else:
                     days.append(i)
                     if num > 0:
                         position += 1
                         last_price = num
                         actions.append('s')
-                        residuals.append(self.residual[i])
+                        residuals.append(num)
                         earns.append('')
                     else:
                         position -= 1
                         last_price = num
                         actions.append('l')
                         earns.append('')
-                        residuals.append(self.residual[i])
+                        residuals.append(num)
             elif abs(num) < out_threshold and position != 0:
                 position = 0
                 earn += abs(last_price - num)
                 days.append(i)
                 actions.append('o')
-                residuals.append(self.residual[i])
+                residuals.append(num)
                 last_price = 0
                 earns.append(earn)
         if plot:
             plt.plot(self.residual)
             plt.show()
-
-        return position, earns, list(self.dates[days]), actions, residuals, series_std[days]
+        print(position, earns, actions)
+        return position, earns, list(self.dates[days]), actions, residuals, self.residual.values.ravel()
 
 
 class CumulativeVolumeTrading:
