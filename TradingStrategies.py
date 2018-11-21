@@ -9,7 +9,6 @@ import warnings
 from ClassifierAndRegressor.ParametricModel import PRegressor as PR
 
 
-
 def save_file(df, filename):
     this_dir, _ = os.path.split(__file__)
     data_path = os.path.join(this_dir, 'data', filename)
@@ -18,7 +17,7 @@ def save_file(df, filename):
 
 class PairTrading:
 
-    def __init__(self, regressor, reg_window_size=20, mean_std_window_size=10):
+    def __init__(self, reg_window_size=20, mean_std_window_size=10):
         self.mean_std_window_size = mean_std_window_size
         self.reg_window_size = reg_window_size
         self.residual = None
@@ -30,31 +29,38 @@ class PairTrading:
         self.rolling_beta = None
         self.rolling_std = None
         self.rolling_mean = None
+        self.raw_residual = None
         self.regressor = PR.ExtendedPandasRollingOLS(window_size=reg_window_size)
 
     # series1 and series2 should be two dataframes, index being the dates.
     def fit(self, series1, series2):
-        self.dates = series1.index
         _series1 = series1.iloc[:, 0].to_frame()
         _series2 = series2.iloc[:, 0].to_frame()
         self.regressor.fit(x_train=_series1, y_train=_series2)
 
-        self.rolling_alpha = self.regressor.regressor.alpha[0:-1]
-        self.rolling_beta = self.regressor.regressor.beta[0:-1]
+        rolling_alpha = self.regressor.regressor.alpha.values[0:-1]
+        dates = self.regressor.regressor.alpha.index[1:]
+        self.rolling_alpha = pd.Series(data=rolling_alpha, index=dates)
+        rolling_beta = self.regressor.regressor.beta.values[0:-1]
+        self.rolling_beta = pd.Series(data=rolling_beta.ravel(), index=dates)
         # drop the first self.reg_window_size returns.
-        _series1 = _series1.drop(_series1.index[:self.reg_window_size])
-        _series2 = _series2.drop(_series2.index[:self.reg_window_size])
+        _series1 = _series1.drop(_series1.index[:self.reg_window_size], axis=0)
+        _series2 = _series2.drop(_series2.index[:self.reg_window_size], axis=0)
         prediction = self.regressor.predict(_series1)
         residual = (prediction - _series2.values.ravel())
+        self.raw_residual = pd.DataFrame(data=residual, index=_series1.index)
 
         rolling_mean = pd.Series(residual).rolling(self.mean_std_window_size).mean().to_frame()
-        
-        self.rolling_mean = rolling_mean.iloc[self.mean_std_window_size:, :]
+        rolling_mean.index = _series1.index
+        index = rolling_mean.index[self.mean_std_window_size:]
+        self.rolling_mean = rolling_mean.iloc[self.mean_std_window_size-1:-1, :]
+        self.rolling_mean.index = index
 
         rolling_std = pd.Series(residual).rolling(self.mean_std_window_size).std().to_frame()
+        rolling_std.index = _series1.index
+        self.rolling_std = rolling_std.iloc[self.mean_std_window_size-1:-1, :]
+        self.rolling_std.index = index
 
-        self.rolling_std = rolling_std.iloc[self.mean_std_window_size:, :]
-        print(self.rolling_std)
         residual = pd.DataFrame(residual[self.mean_std_window_size:], index=self.rolling_std.index)
         residual -= self.rolling_mean
         residual /= self.rolling_std
@@ -76,7 +82,7 @@ class PairTrading:
 
         for i, num in zip(self.residual.index, self.residual.values):
             num = num[0]
-            print(i, num)
+            # print(i, num)
             if abs(num) > in_threshold and abs(position) < self.maximum_position:
                 if position != 0:
                     if num > in_threshold and position < 0:
@@ -120,8 +126,8 @@ class PairTrading:
         if plot:
             plt.plot(self.residual)
             plt.show()
-        print(position, earns, actions)
-        return position, earns, list(self.dates[days]), actions, residuals, self.residual.values.ravel()
+        # print(position, earns, actions)
+        return position, earns, days, actions, residuals, self.residual.values.ravel()
 
 
 class CumulativeVolumeTrading:
