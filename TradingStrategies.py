@@ -152,7 +152,6 @@ class PairTrading:
         if plot:
             plt.plot(self.residual)
             plt.show()
-        # print(position, earns, actions)
         return position, earns, days, actions, residuals, beta
 
 
