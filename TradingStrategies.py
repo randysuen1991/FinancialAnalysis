@@ -43,6 +43,8 @@ class PairTrading:
         self.rolling_alpha = pd.Series(data=rolling_alpha, index=dates)
         rolling_beta = self.regressor.regressor.beta.values[0:-1]
         self.rolling_beta = pd.Series(data=rolling_beta.ravel(), index=dates)
+        self.rolling_alpha = self.rolling_alpha.iloc[self.mean_std_window_size:]
+        self.rolling_beta = self.rolling_beta.iloc[self.mean_std_window_size:]
         # drop the first self.reg_window_size returns.
         _series1 = _series1.drop(_series1.index[:self.reg_window_size], axis=0)
         _series2 = _series2.drop(_series2.index[:self.reg_window_size], axis=0)
@@ -55,7 +57,6 @@ class PairTrading:
         index = rolling_mean.index[self.mean_std_window_size:]
         self.rolling_mean = rolling_mean.iloc[self.mean_std_window_size-1:-1, :]
         self.rolling_mean.index = index
-
         rolling_std = pd.Series(residual).rolling(self.mean_std_window_size).std().to_frame()
         rolling_std.index = _series1.index
         self.rolling_std = rolling_std.iloc[self.mean_std_window_size-1:-1, :]
@@ -66,6 +67,7 @@ class PairTrading:
         residual /= self.rolling_std
         self.residual = residual
         self.result = DA.TimeSeriesAnalysis.adfuller(residual.values.ravel())
+
         return self.result
 
     # return the days in which we should go in and we should go out.
@@ -79,18 +81,19 @@ class PairTrading:
         earn = 0
         earns = list()
         residuals = list()
-
+        count = 0
+        beta = list()
         for i, num in zip(self.residual.index, self.residual.values):
             num = num[0]
-            # print(i, num)
             if abs(num) > in_threshold and abs(position) < self.maximum_position:
+                beta.append(self.rolling_beta.iloc[count])
+                days.append(i)
                 if position != 0:
                     if num > in_threshold and position < 0:
                         earn += (num-last_price)
                         position = 1
                         last_price = num
                         actions.append('o&s')
-                        days.append(i)
                         earns.append(earn)
                         residuals.append(num)
                     elif num < in_threshold and position > 0:
@@ -98,11 +101,9 @@ class PairTrading:
                         position = -1
                         last_price = num
                         actions.append('o&l')
-                        days.append(i)
                         earns.append(earn)
                         residuals.append(num)
                 else:
-                    days.append(i)
                     if num > 0:
                         position += 1
                         last_price = num
@@ -116,6 +117,7 @@ class PairTrading:
                         earns.append('')
                         residuals.append(num)
             elif abs(num) < out_threshold and position != 0:
+                beta.append(self.rolling_beta.iloc[count])
                 position = 0
                 earn += abs(last_price - num)
                 days.append(i)
@@ -123,11 +125,35 @@ class PairTrading:
                 residuals.append(num)
                 last_price = 0
                 earns.append(earn)
+
+            elif in_threshold > abs(num) > out_threshold and position != 0:
+                if num < 0 and position < 0:
+                    beta.append(self.rolling_beta.iloc[count])
+                    days.append(i)
+                    position = 0
+                    actions.append('o')
+                    earn += abs(last_price - num)
+                    residuals.append(num)
+                    last_price = 0
+                    earns.append(earn)
+
+                elif num > 0 and position > 0:
+                    beta.append(self.rolling_beta.iloc[count])
+                    days.append(i)
+                    position = 0
+                    actions.append('o')
+                    earn += abs(last_price - num)
+                    residuals.append(num)
+                    last_price = 0
+                    earns.append(earn)
+
+            count += 1
+
         if plot:
             plt.plot(self.residual)
             plt.show()
         # print(position, earns, actions)
-        return position, earns, days, actions, residuals, self.residual.values.ravel()
+        return position, earns, days, actions, residuals, beta
 
 
 class CumulativeVolumeTrading:
