@@ -26,5 +26,5 @@ class BlackScholes:
         d2 = d1 - sigma * np.sqrt(t)
         return k * np.exp(-r * t) * si.norm.cdf(-d2, 0.0, 1.0) - s * si.norm.cdf(-d1, 0.0, 1.0)
 
-    
+
 
