@@ -17,32 +17,45 @@ def save_file(df, filename):
 
 class PairTrading:
 
-    def __init__(self, reg_window_size=20, mean_std_window_size=10):
+    def __init__(self, reg_window_size=20, mean_std_window_size=10, rolling_reg=True, rolling_mean_std=True):
         self.mean_std_window_size = mean_std_window_size
         self.reg_window_size = reg_window_size
         self.residual = None
         self.result = None
         self.dates = None
         self.maximum_position = 1
+
         # rolling_alpha, rolling_beta, rolling_std, and rolling_mean are dataframes.
-        self.rolling_alpha = None
-        self.rolling_beta = None
-        self.rolling_std = None
-        self.rolling_mean = None
+        self.rolling_reg = rolling_reg
+        self.rolling_mean_std = rolling_mean_std
+
+        if rolling_reg:
+            self.rolling_alpha = None
+            self.rolling_beta = None
+            self.rolling_rsq = None
+        if rolling_mean_std:
+            self.rolling_std = None
+            self.rolling_mean = None
+
         self.raw_residual = None
         self.regressor = PR.ExtendedPandasRollingOLS(window_size=reg_window_size)
 
     # series1 and series2 should be two dataframes, index being the dates.
     def fit(self, series1, series2):
         self.regressor.fit(x_train=series1, y_train=series2)
+        if self.rolling_reg and :
+            rolling_alpha = self.regressor.regressor.alpha.values[0:-1]
+            dates = self.regressor.regressor.alpha.index[1:]
+            self.rolling_alpha = pd.Series(data=rolling_alpha, index=dates)
+            rolling_beta = self.regressor.regressor.beta.values[0:-1]
+            self.rolling_beta = pd.Series(data=rolling_beta.ravel(), index=dates)
+            rolling_rsq = self.regressor.regressor.rsq.values[0:-1]
+            self.rolling_rsq = pd.Series(data=rolling_rsq, index=dates)
 
-        rolling_alpha = self.regressor.regressor.alpha.values[0:-1]
-        dates = self.regressor.regressor.alpha.index[1:]
-        self.rolling_alpha = pd.Series(data=rolling_alpha, index=dates)
-        rolling_beta = self.regressor.regressor.beta.values[0:-1]
-        self.rolling_beta = pd.Series(data=rolling_beta.ravel(), index=dates)
-        self.rolling_alpha = self.rolling_alpha.iloc[self.mean_std_window_size:]
-        self.rolling_beta = self.rolling_beta.iloc[self.mean_std_window_size:]
+            self.rolling_rsq = self.rolling_rsq.iloc[self.mean_std_window_size:]
+            self.rolling_alpha = self.rolling_alpha.iloc[self.mean_std_window_size:]
+            self.rolling_beta = self.rolling_beta.iloc[self.mean_std_window_size:]
+
         # drop the first self.reg_window_size returns.
         _series1 = series1.drop(series1.index[:self.reg_window_size], axis=0)
         _series2 = series2.drop(series2.index[:self.reg_window_size], axis=0)
