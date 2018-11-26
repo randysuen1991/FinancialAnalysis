@@ -92,7 +92,7 @@ class PairTrading:
 
     # return the days in which we should go in and we should go out.
     # the series should be a dataframe whose index should be the date.
-    def simulate(self, in_threshold, out_threshold, plot=False):
+    def simulate(self, in_threshold, out_threshold, test_series=None, plot=False):
 
         days = list()
         actions = list()
@@ -103,7 +103,15 @@ class PairTrading:
         residuals = list()
         count = 0
         beta = list()
-        for i, num in zip(self.residual.index, self.residual.values):
+
+        if test_series is None:
+            indices = self.residual.index
+            values = self.residual.values
+        else:
+            indices = test_series.index
+            values = test_series.values
+
+        for i, num in zip(indices, values):
             num = num[0]
             if abs(num) > in_threshold and abs(position) < self.maximum_position:
                 beta.append(self.rolling_beta.iloc[count])
