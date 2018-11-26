@@ -43,7 +43,7 @@ class PairTrading:
     # series1 and series2 should be two dataframes, index being the dates.
     def fit(self, series1, series2):
         self.regressor.fit(x_train=series1, y_train=series2)
-        if self.rolling_reg and :
+        if self.rolling_reg:
             rolling_alpha = self.regressor.regressor.alpha.values[0:-1]
             dates = self.regressor.regressor.alpha.index[1:]
             self.rolling_alpha = pd.Series(data=rolling_alpha, index=dates)
@@ -52,24 +52,29 @@ class PairTrading:
             rolling_rsq = self.regressor.regressor.rsq.values[0:-1]
             self.rolling_rsq = pd.Series(data=rolling_rsq, index=dates)
 
-            self.rolling_rsq = self.rolling_rsq.iloc[self.mean_std_window_size:]
-            self.rolling_alpha = self.rolling_alpha.iloc[self.mean_std_window_size:]
-            self.rolling_beta = self.rolling_beta.iloc[self.mean_std_window_size:]
+            if self.rolling_mean_std:
+                self.rolling_rsq = self.rolling_rsq.iloc[self.mean_std_window_size:]
+                self.rolling_alpha = self.rolling_alpha.iloc[self.mean_std_window_size:]
+                self.rolling_beta = self.rolling_beta.iloc[self.mean_std_window_size:]
 
-        # drop the first self.reg_window_size returns.
-        _series1 = series1.drop(series1.index[:self.reg_window_size], axis=0)
-        _series2 = series2.drop(series2.index[:self.reg_window_size], axis=0)
-        prediction = self.regressor.predict(_series1)
-        residual = (prediction - _series2.values.ravel())
-        self.raw_residual = pd.DataFrame(data=residual, index=_series1.index)
+            # drop the first self.reg_window_size returns.
+            series1 = series1.drop(series1.index[:self.reg_window_size], axis=0)
+            series2 = series2.drop(series2.index[:self.reg_window_size], axis=0)
+            prediction = self.regressor.predict(series1)
+            residual = (prediction - series2.values.ravel())
+        else:
+            prediction = self.regressor.predict(series1)
+            residual = (prediction - series2.values.ravel())
+
+        self.raw_residual = pd.DataFrame(data=residual, index=series1.index)
 
         rolling_mean = pd.Series(residual).rolling(self.mean_std_window_size).mean().to_frame()
-        rolling_mean.index = _series1.index
+        rolling_mean.index = series1.index
         index = rolling_mean.index[self.mean_std_window_size:]
         self.rolling_mean = rolling_mean.iloc[self.mean_std_window_size-1:-1, :]
         self.rolling_mean.index = index
         rolling_std = pd.Series(residual).rolling(self.mean_std_window_size).std().to_frame()
-        rolling_std.index = _series1.index
+        rolling_std.index = series1.index
         self.rolling_std = rolling_std.iloc[self.mean_std_window_size-1:-1, :]
         self.rolling_std.index = index
 
