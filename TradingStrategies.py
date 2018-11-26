@@ -112,6 +112,10 @@ class PairTrading:
             indices = self.residual.index
             values = self.residual.values
         else:
+            if self.rolling_reg or self.rolling_mean_std:
+                warnings.warn('No rolling parameters for testing data.')
+                self.mean = self.rolling_mean.values[-1]
+                self.std = self.rolling_std.values[-1]
             indices = test_series.index
             values = test_series.values
             values -= self.mean
