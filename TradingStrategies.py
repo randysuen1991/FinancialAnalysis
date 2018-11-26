@@ -36,7 +36,9 @@ class PairTrading:
         if rolling_mean_std:
             self.rolling_std = None
             self.rolling_mean = None
-
+        else:
+            self.mean = None
+            self.std = None
         self.raw_residual = None
         self.regressor = PR.ExtendedPandasRollingOLS(window_size=reg_window_size)
 
@@ -82,8 +84,10 @@ class PairTrading:
             residual -= self.rolling_mean
             residual /= self.rolling_std
         else:
-            residual -= np.mean(residual)
-            residual /= np.std(residual)
+            self.mean = np.mean(residual)
+            self.std = np.std(residual)
+            residual -= self.mean
+            residual /= self.std
 
         self.residual = residual
         self.result = DA.TimeSeriesAnalysis.adfuller(residual.values.ravel())
@@ -110,6 +114,8 @@ class PairTrading:
         else:
             indices = test_series.index
             values = test_series.values
+            values -= self.mean
+            values /= self.std
 
         for i, num in zip(indices, values):
             num = num[0]
