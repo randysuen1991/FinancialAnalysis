@@ -52,11 +52,6 @@ class PairTrading:
             rolling_rsq = self.regressor.regressor.rsq.values[0:-1]
             self.rolling_rsq = pd.Series(data=rolling_rsq, index=dates)
 
-            if self.rolling_mean_std:
-                self.rolling_rsq = self.rolling_rsq.iloc[self.mean_std_window_size:]
-                self.rolling_alpha = self.rolling_alpha.iloc[self.mean_std_window_size:]
-                self.rolling_beta = self.rolling_beta.iloc[self.mean_std_window_size:]
-
             # drop the first self.reg_window_size returns.
             series1 = series1.drop(series1.index[:self.reg_window_size], axis=0)
             series2 = series2.drop(series2.index[:self.reg_window_size], axis=0)
@@ -68,19 +63,28 @@ class PairTrading:
 
         self.raw_residual = pd.DataFrame(data=residual, index=series1.index)
 
-        rolling_mean = pd.Series(residual).rolling(self.mean_std_window_size).mean().to_frame()
-        rolling_mean.index = series1.index
-        index = rolling_mean.index[self.mean_std_window_size:]
-        self.rolling_mean = rolling_mean.iloc[self.mean_std_window_size-1:-1, :]
-        self.rolling_mean.index = index
-        rolling_std = pd.Series(residual).rolling(self.mean_std_window_size).std().to_frame()
-        rolling_std.index = series1.index
-        self.rolling_std = rolling_std.iloc[self.mean_std_window_size-1:-1, :]
-        self.rolling_std.index = index
+        if self.rolling_mean_std:
 
-        residual = pd.DataFrame(residual[self.mean_std_window_size:], index=self.rolling_std.index)
-        residual -= self.rolling_mean
-        residual /= self.rolling_std
+            self.rolling_rsq = self.rolling_rsq.iloc[self.mean_std_window_size:]
+            self.rolling_alpha = self.rolling_alpha.iloc[self.mean_std_window_size:]
+            self.rolling_beta = self.rolling_beta.iloc[self.mean_std_window_size:]
+
+            rolling_mean = pd.Series(residual).rolling(self.mean_std_window_size).mean().to_frame()
+            rolling_mean.index = series1.index
+            index = rolling_mean.index[self.mean_std_window_size:]
+            self.rolling_mean = rolling_mean.iloc[self.mean_std_window_size-1:-1, :]
+            self.rolling_mean.index = index
+            rolling_std = pd.Series(residual).rolling(self.mean_std_window_size).std().to_frame()
+            rolling_std.index = series1.index
+            self.rolling_std = rolling_std.iloc[self.mean_std_window_size-1:-1, :]
+            self.rolling_std.index = index
+            residual = pd.DataFrame(residual[self.mean_std_window_size:], index=self.rolling_std.index)
+            residual -= self.rolling_mean
+            residual /= self.rolling_std
+        else:
+            residual -= np.mean(residual)
+            residual /= np.std(residual)
+
         self.residual = residual
         self.result = DA.TimeSeriesAnalysis.adfuller(residual.values.ravel())
 
