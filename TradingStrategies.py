@@ -114,7 +114,8 @@ class PairTrading:
         for i, num in zip(indices, values):
             num = num[0]
             if abs(num) > in_threshold and abs(position) < self.maximum_position:
-                beta.append(self.rolling_beta.iloc[count])
+                if self.rolling_reg:
+                    beta.append(self.rolling_beta.iloc[count])
                 days.append(i)
                 if position != 0:
                     if num > in_threshold and position < 0:
@@ -145,7 +146,8 @@ class PairTrading:
                         earns.append('')
                         residuals.append(num)
             elif abs(num) < out_threshold and position != 0:
-                beta.append(self.rolling_beta.iloc[count])
+                if self.rolling_reg:
+                    beta.append(self.rolling_beta.iloc[count])
                 position = 0
                 earn += abs(last_price - num)
                 days.append(i)
@@ -156,7 +158,8 @@ class PairTrading:
 
             elif in_threshold > abs(num) > out_threshold and position != 0:
                 if num < 0 and position < 0:
-                    beta.append(self.rolling_beta.iloc[count])
+                    if self.rolling_reg:
+                        beta.append(self.rolling_beta.iloc[count])
                     days.append(i)
                     position = 0
                     actions.append('o')
@@ -166,7 +169,8 @@ class PairTrading:
                     earns.append(earn)
 
                 elif num > 0 and position > 0:
-                    beta.append(self.rolling_beta.iloc[count])
+                    if self.rolling_reg:
+                        beta.append(self.rolling_beta.iloc[count])
                     days.append(i)
                     position = 0
                     actions.append('o')
