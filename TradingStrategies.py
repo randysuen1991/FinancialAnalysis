@@ -33,6 +33,10 @@ class PairTrading:
             self.rolling_alpha = None
             self.rolling_beta = None
             self.rolling_rsq = None
+            self.regressor = PR.ExtendedPandasRollingOLS(window_size=reg_window_size)
+        else:
+            self.regressor = PR.OrdinaryLeastSquaredRegressor()
+
         if rolling_mean_std:
             self.rolling_std = None
             self.rolling_mean = None
@@ -40,7 +44,6 @@ class PairTrading:
             self.mean = None
             self.std = None
         self.raw_residual = None
-        self.regressor = PR.ExtendedPandasRollingOLS(window_size=reg_window_size)
 
     # series1 and series2 should be two dataframes, index being the dates.
     def fit(self, series1, series2):
@@ -60,10 +63,10 @@ class PairTrading:
             prediction = self.regressor.predict(series1)
             residual = (prediction - series2.values.ravel())
         else:
-            prediction = self.regressor.predict(series1)
+            prediction = self.regressor.predict(series1).ravel()
             residual = (prediction - series2.values.ravel())
 
-        self.raw_residual = pd.DataFrame(data=residual, index=series1.index)
+        self.raw_residual = pd.Series(data=residual, index=series1.index)
 
         if self.rolling_mean_std:
 
@@ -80,7 +83,7 @@ class PairTrading:
             rolling_std.index = series1.index
             self.rolling_std = rolling_std.iloc[self.mean_std_window_size-1:-1, :]
             self.rolling_std.index = index
-            residual = pd.DataFrame(residual[self.mean_std_window_size:], index=self.rolling_std.index)
+            residual = pd.Series(residual[self.mean_std_window_size:], index=self.rolling_std.index)
             residual -= self.rolling_mean
             residual /= self.rolling_std
         else:
@@ -88,15 +91,23 @@ class PairTrading:
             self.std = np.std(residual)
             residual -= self.mean
             residual /= self.std
+            residual = pd.Series(residual, index=series1.index)
 
         self.residual = residual
         self.result = DA.TimeSeriesAnalysis.adfuller(residual.values.ravel())
 
         return self.result
 
+    def transform(self, series1, series2):
+        prediction = self.regressor.predict(series1).ravel()
+        residual = (prediction - series2.values.ravel())
+        residual -= self.mean
+        residual /= self.std
+        return pd.Series(residual, index=series1.index)
+
     # return the days in which we should go in and we should go out.
     # the series should be a dataframe whose index should be the date.
-    def simulate(self, in_threshold, out_threshold, test_series=None, plot=False):
+    def simulate(self, in_threshold, out_threshold, test_residual=None, plot=False):
 
         days = list()
         actions = list()
@@ -108,7 +119,7 @@ class PairTrading:
         count = 0
         beta = list()
 
-        if test_series is None:
+        if test_residual is None:
             indices = self.residual.index
             values = self.residual.values
         else:
@@ -116,13 +127,10 @@ class PairTrading:
                 warnings.warn('No rolling parameters for testing data.')
                 self.mean = self.rolling_mean.values[-1]
                 self.std = self.rolling_std.values[-1]
-            indices = test_series.index
-            values = test_series.values
-            values -= self.mean
-            values /= self.std
+            indices = test_residual.index
+            values = test_residual.values
 
         for i, num in zip(indices, values):
-            num = num[0]
             if abs(num) > in_threshold and abs(position) < self.maximum_position:
                 if self.rolling_reg:
                     beta.append(self.rolling_beta.iloc[count])
