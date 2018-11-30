@@ -17,7 +17,7 @@ def save_file(df, filename):
 
 class PairTrading:
 
-    def __init__(self, reg_window_size=20, mean_std_window_size=10, rolling_reg=True, rolling_mean_std=True):
+    def __init__(self, reg_window_size=20, mean_std_window_size=10, rolling_reg=False, rolling_mean_std=False):
         self.mean_std_window_size = mean_std_window_size
         self.reg_window_size = reg_window_size
         self.residual = None
@@ -34,6 +34,8 @@ class PairTrading:
             self.rolling_beta = None
             self.rolling_rsq = None
             self.regressor = PR.ExtendedPandasRollingOLS(window_size=reg_window_size)
+            self.average_rolling_alpha = None
+            self.average_rolling_beta = None
         else:
             self.regressor = PR.OrdinaryLeastSquaredRegressor()
 
@@ -56,6 +58,9 @@ class PairTrading:
             self.rolling_beta = pd.Series(data=rolling_beta.ravel(), index=dates)
             rolling_rsq = self.regressor.regressor.rsq.values[0:-1]
             self.rolling_rsq = pd.Series(data=rolling_rsq, index=dates)
+
+            self.average_rolling_alpha = np.mean(self.rolling_alpha)
+            self.average_rolling_beta = np.mean(self.rolling_beta)
 
             # drop the first self.reg_window_size returns.
             series1 = series1.drop(series1.index[:self.reg_window_size], axis=0)
@@ -136,14 +141,14 @@ class PairTrading:
                     beta.append(self.rolling_beta.iloc[count])
                 days.append(i)
                 if position != 0:
-                    if num > in_threshold and position < 0:
+                    if num > in_threshold and position > 0:
                         earn += (num-last_price)
                         position = 1
                         last_price = num
                         actions.append('o&s')
                         earns.append(earn)
                         residuals.append(num)
-                    elif num < in_threshold and position > 0:
+                    elif num < in_threshold and position < 0:
                         earn += (last_price-num)
                         position = -1
                         last_price = num
